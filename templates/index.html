@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bleed Buddy</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/alpinejs" defer></script>
+  <script src="https://js.stripe.com/v3/"></script>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+  <header class="p-6 text-center">
+    <h1 class="text-4xl font-bold">🩸 Bleed Buddy</h1>
+    <p class="text-sm">hello@bleedbuddy.com</p>
+  </header>
+
+  <main class="max-w-3xl mx-auto p-6 space-y-8">
+
+    <section class="text-center">
+      <h2 class="text-2xl font-bold mb-4">Fix Your Print Files Automatically</h2>
+      <p>Upload your file → Preview → Pay → Convert</p>
+    </section>
+
+    <section x-data="{ fileName: '' }" class="bg-white p-6 rounded-lg shadow text-center">
+      <form id="uploadForm" enctype="multipart/form-data">
+        <input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg" 
+               @change="fileName = $event.target.files[0].name" class="mb-4">
+        <p x-text="fileName"></p>
+        <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded">Upload</button>
+      </form>
+    </section>
+
+    <section class="text-center">
+      <button onclick="checkout()" class="bg-green-500 text-white px-6 py-3 rounded">
+        Pay $5.99 & Convert
+      </button>
+    </section>
+
+    <section class="bg-white p-6 rounded-lg shadow">
+      <h3 class="text-xl font-bold mb-2">FAQ</h3>
+      <p><strong>What is a bleed?</strong> A bleed is the area beyond the trim where artwork extends to avoid white edges after cutting.</p>
+      <p><strong>What are crop marks?</strong> Crop marks are lines printed at the corners to show where the page should be trimmed.</p>
+    </section>
+
+    <section class="bg-white p-6 rounded-lg shadow">
+      <h3 class="text-xl font-bold mb-2">Subscribe for One Free Conversion</h3>
+      <form id="subscribeForm">
+        <input type="email" name="email" placeholder="Enter your email" class="border p-2 rounded w-2/3">
+        <button type="submit" class="bg-purple-500 text-white px-4 py-2 rounded">Subscribe</button>
+      </form>
+    </section>
+
+  </main>
+
+  <footer class="text-center p-6 text-sm text-gray-500">
+    <a href="#">Privacy Policy</a> | <a href="#">Terms & Conditions</a>
+  </footer>
+
+  <script>
+    const stripe = Stripe("{{ publishable_key }}");
+
+    document.getElementById("uploadForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const res = await fetch("/upload", { method: "POST", body: formData });
+      const data = await res.json();
+      alert(JSON.stringify(data));
+    });
+
+    async function checkout() {
+      const res = await fetch("/create-checkout-session", { method: "POST" });
+      const data = await res.json();
+      stripe.redirectToCheckout({ sessionId: data.id });
+    }
+
+    document.getElementById("subscribeForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const res = await fetch("/subscribe", { method: "POST", body: formData });
+      const data = await res.json();
+      alert(data.message);
+    });
+  </script>
+
+</body>
+</html>

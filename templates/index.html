@@ -1,87 +1,178 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="en" x-data="bleedBuddyApp()" x-init="init()">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bleed Buddy</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/alpinejs" defer></script>
-  <script src="https://js.stripe.com/v3/"></script>
-</head>
-<body class="bg-gray-50 text-gray-800">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
 
-  <header class="p-6 text-center">
-    <h1 class="text-4xl font-bold">🩸 Bleed Buddy</h1>
-    <p class="text-sm">hello@bleedbuddy.com</p>
+  <title>Bleed Buddy — Fix Print Files with Bleeds & Crop Marks</title>
+  <meta name="description" content="Bleed Buddy automatically adds missing bleeds and crop marks to your print-ready PDFs and images. Ensure perfect prints every time.">
+  <meta property="og:title" content="Bleed Buddy — Fix Print Files with Bleeds & Crop Marks" />
+  <meta property="og:description" content="Upload, pay, and download corrected print files with proper bleeds and crop marks." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="/static/images/mascot_placeholder.svg" />
+  <link rel="icon" href="/static/images/mascot_placeholder.svg" type="image/svg+xml">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="https://js.stripe.com/v3/"></script>
+
+  <!-- FAQ Schema for SEO -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "What is a bleed in printing?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "A bleed is an extra margin of artwork extending 0.125 inches beyond the trim line to prevent white edges when trimming."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What are crop marks?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Crop marks are small lines at the corners of a print layout that show where to trim the finished piece."
+        }
+      }
+    ]
+  }
+  </script>
+</head>
+<body class="bg-gray-50 text-slate-700 flex flex-col min-h-screen">
+
+  <!-- Hero Section -->
+  <header class="flex-1 flex flex-col items-center justify-center text-center px-6 py-20 bg-white shadow">
+    <img src="/static/images/mascot_placeholder.svg" alt="Bleed Buddy mascot" class="w-24 h-24 mx-auto mb-6"/>
+    <h1 class="text-4xl font-extrabold mb-4">Bleed Buddy</h1>
+    <p class="text-lg text-slate-600 mb-8 max-w-xl mx-auto">Automatically fix your print files by adding missing bleeds and crop marks — without touching the live artwork.</p>
+
+    <!-- Upload CTA -->
+    <div
+      @dragover.prevent="dragover=true"
+      @dragleave.prevent="dragover=false"
+      @drop.prevent="handleDrop($event)"
+      :class="{'dropzone': true, 'dragover': dragover}"
+      class="border-2 border-dashed border-slate-300 rounded-lg p-8 w-full max-w-lg bg-gray-50"
+    >
+      <input id="fileInput" type="file" @change="handleFileInput" class="hidden" />
+      <p class="mb-4 text-slate-600">Upload PDF, PNG, or JPG (max 50MB)</p>
+      <button @click="document.getElementById('fileInput').click()" class="px-6 py-3 bg-indigo-600 text-white rounded-lg">Choose File</button>
+      <div class="mt-4" x-show="uploading">Analyzing file...</div>
+      <template x-if="fileInfo">
+        <div class="mt-6 bg-white p-4 rounded shadow text-left">
+          <h3 class="font-bold mb-2" x-text="fileInfo.filename"></h3>
+          <template x-for="(report, idx) in fileInfo.analysis" :key="idx">
+            <div class="border rounded p-2 mb-2 text-sm">
+              <strong>Page</strong> <span x-text="idx+1"></span><br>
+              Bleed: <span x-text="report.bleed_present ? 'Yes' : 'No'"></span><br>
+              Crop Marks: <span x-text="report.crop_marks ? 'Yes' : 'No'"></span><br>
+              Colorspace: <span x-text="report.colorspace"></span><br>
+              Resolution: <span x-text="report.resolution_dpi"></span> DPI
+            </div>
+          </template>
+          <div class="mt-4">
+            <button @click="pay()" class="px-4 py-2 bg-green-600 text-white rounded" x-text="payText">Pay & Convert — $5.99</button>
+            <button @click="simulate()" class="ml-2 px-4 py-2 border rounded text-sm">Simulate (dev)</button>
+          </div>
+        </div>
+      </template>
+    </div>
   </header>
 
-  <main class="max-w-3xl mx-auto p-6 space-y-8">
+  <!-- Subscribe Section -->
+  <section id="subscribe" class="py-12 bg-indigo-50 text-center">
+    <h2 class="text-2xl font-bold mb-4">Get 1 Free Conversion</h2>
+    <p class="text-slate-600 mb-6">Subscribe with your email and get one free file conversion credit.</p>
+    <div class="flex justify-center gap-2 max-w-md mx-auto">
+      <input x-model="subscribeEmail" type="email" placeholder="you@company.com" class="px-3 py-2 border rounded w-full" />
+      <button @click="subscribe()" class="px-4 py-2 bg-indigo-600 text-white rounded">Subscribe</button>
+    </div>
+    <p x-text="subscribeMsg" class="text-sm mt-2 text-green-700"></p>
+  </section>
 
-    <section class="text-center">
-      <h2 class="text-2xl font-bold mb-4">Fix Your Print Files Automatically</h2>
-      <p>Upload your file → Preview → Pay → Convert</p>
-    </section>
+  <!-- FAQ -->
+  <section id="faq" class="py-12 max-w-4xl mx-auto px-6">
+    <h2 class="text-2xl font-bold mb-6 text-center">Frequently Asked Questions</h2>
+    <div class="grid md:grid-cols-2 gap-6">
+      <div class="bg-white p-6 rounded shadow">
+        <h3 class="font-semibold">What is a bleed?</h3>
+        <p class="text-sm text-slate-600 mt-2">A bleed is an extension of artwork beyond the trim edge to ensure clean cuts. Industry standard: 0.125 inches (3.175 mm).</p>
+      </div>
+      <div class="bg-white p-6 rounded shadow">
+        <h3 class="font-semibold">What are crop marks?</h3>
+        <p class="text-sm text-slate-600 mt-2">Crop marks are small lines in the corners of print files to guide trimming after printing.</p>
+      </div>
+    </div>
+  </section>
 
-    <section x-data="{ fileName: '' }" class="bg-white p-6 rounded-lg shadow text-center">
-      <form id="uploadForm" enctype="multipart/form-data">
-        <input type="file" name="file" accept=".pdf,.png,.jpg,.jpeg" 
-               @change="fileName = $event.target.files[0].name" class="mb-4">
-        <p x-text="fileName"></p>
-        <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded">Upload</button>
-      </form>
-    </section>
-
-    <section class="text-center">
-      <button onclick="checkout()" class="bg-green-500 text-white px-6 py-3 rounded">
-        Pay $5.99 & Convert
-      </button>
-    </section>
-
-    <section class="bg-white p-6 rounded-lg shadow">
-      <h3 class="text-xl font-bold mb-2">FAQ</h3>
-      <p><strong>What is a bleed?</strong> A bleed is the area beyond the trim where artwork extends to avoid white edges after cutting.</p>
-      <p><strong>What are crop marks?</strong> Crop marks are lines printed at the corners to show where the page should be trimmed.</p>
-    </section>
-
-    <section class="bg-white p-6 rounded-lg shadow">
-      <h3 class="text-xl font-bold mb-2">Subscribe for One Free Conversion</h3>
-      <form id="subscribeForm">
-        <input type="email" name="email" placeholder="Enter your email" class="border p-2 rounded w-2/3">
-        <button type="submit" class="bg-purple-500 text-white px-4 py-2 rounded">Subscribe</button>
-      </form>
-    </section>
-
-  </main>
-
-  <footer class="text-center p-6 text-sm text-gray-500">
-    <a href="#">Privacy Policy</a> | <a href="#">Terms & Conditions</a>
+  <!-- Footer -->
+  <footer class="bg-white border-t py-6 text-center text-sm text-slate-500">
+    <p>&copy; 2025 Bleed Buddy • <a href="#" class="underline">Privacy Policy</a> • <a href="#" class="underline">Terms & Conditions</a></p>
+    <p class="mt-2">Contact: hello@bleedbuddy.com</p>
   </footer>
 
+  <!-- Alpine App -->
   <script>
-    const stripe = Stripe("{{ publishable_key }}");
+  function bleedBuddyApp(){
+    return {
+      uploading: false,
+      fileInfo: null,
+      subscribeEmail: '',
+      subscribeMsg: '',
+      dragover: false,
+      payText: 'Pay & Convert — $5.99',
 
-    document.getElementById("uploadForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(e.target);
-      const res = await fetch("/upload", { method: "POST", body: formData });
-      const data = await res.json();
-      alert(JSON.stringify(data));
-    });
+      init(){},
 
-    async function checkout() {
-      const res = await fetch("/create-checkout-session", { method: "POST" });
-      const data = await res.json();
-      stripe.redirectToCheckout({ sessionId: data.id });
+      handleFileInput(e){
+        const f = e.target.files[0];
+        if(!f) return;
+        this.uploadFile(f);
+      },
+      handleDrop(e){
+        this.dragover=false;
+        const f = (e.dataTransfer || e.target).files[0];
+        if(!f) return;
+        this.uploadFile(f);
+      },
+      async uploadFile(file){
+        this.uploading = true;
+        this.fileInfo = null;
+        const fd = new FormData();
+        fd.append('file', file);
+        const res = await fetch('/upload',{method:'POST',body:fd});
+        const j = await res.json();
+        this.uploading=false;
+        if(j.error){ alert(j.error); return; }
+        this.fileInfo=j;
+      },
+      async subscribe(){
+        if(!this.subscribeEmail) { this.subscribeMsg='Enter an email.'; return; }
+        const res = await fetch('/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:this.subscribeEmail})});
+        const j = await res.json();
+        if(j.ok) this.subscribeMsg='Subscribed! Free credit applied.'; else this.subscribeMsg=j.error||'Error';
+      },
+      async pay(){
+        if(!this.fileInfo) return alert('Upload first');
+        const payload={file_id:this.fileInfo.file_id,pages:'all'};
+        const res=await fetch('/create-checkout-session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        const j=await res.json();
+        if(j.error) return alert(j.error);
+        if(j.url) window.location=j.url; else if(j.simulate) window.location=j.simulate_url;
+      },
+      async simulate(){
+        if(!this.fileInfo) return alert('Upload first');
+        const payload={file_id:this.fileInfo.file_id,pages:'all',simulate:true};
+        const res=await fetch('/process',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        const j=await res.json();
+        if(j.error) alert(j.error); else window.open(`/download/${j.result_id}`,'_blank');
+      }
     }
-
-    document.getElementById("subscribeForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const formData = new FormData(e.target);
-      const res = await fetch("/subscribe", { method: "POST", body: formData });
-      const data = await res.json();
-      alert(data.message);
-    });
+  }
   </script>
-
 </body>
 </html>
